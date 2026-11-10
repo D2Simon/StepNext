@@ -3,6 +3,10 @@ import AppKit
 import WidgetKit
 
 enum Palette {
+    static func category(_ name: String, categories: [String]) -> Color {
+        let rgb = CategoryColors.rgb(for: name, categories: categories)
+        return Color(red: rgb.0, green: rgb.1, blue: rgb.2)
+    }
     static func priority(_ value: TaskPriority) -> Color {
         switch value { case .urgent: return Color(red: 0.72, green: 0.25, blue: 0.06); case .normal: return blue; case .low: return muted }
     }
@@ -53,6 +57,7 @@ final class Store: ObservableObject {
         catch { self.error = "保存失败：\(error.localizedDescription)" }
     }
     func put(_ item: TaskItem) { change { archive in if let i = archive.tasks.firstIndex(where: {$0.id == item.id}) { archive.tasks[i] = item } else { archive.tasks.insert(item, at: 0) } } }
+    func reorder(_ orderedIDs: [UUID]) { change { $0.reorderTasks(orderedIDs) } }
     func remove(_ id: UUID) { change { $0.tasks.removeAll { $0.id == id } } }
     func setProgress(_ task: UUID, _ step: UUID) { change { archive in
         guard let i = archive.tasks.firstIndex(where: { $0.id == task }) else { return }
@@ -112,16 +117,61 @@ struct Editor: View {
         }.padding(28).frame(width: 520).background(Palette.mist.opacity(0.6)).tint(Palette.blue).preferredColorScheme(.light).onAppear { splitProgress = !(item.steps.count == 1 && item.steps[0].title == "完成"); mode = item.dueDate != nil ? 1 : (item.dueText.isEmpty ? 0 : 2); date = item.dueDate ?? Date(); titleFocused = true }
     }
 }
+// Native drag lifecycle keeps cancelled/outside drops from changing saved order.
+struct TaskFrames: PreferenceKey {
+    static var defaultValue: [UUID: CGRect] { [:] }
+    static func reduce(value: inout [UUID: CGRect], nextValue: () -> [UUID: CGRect]) { value.merge(nextValue(), uniquingKeysWith: { _, new in new }) }
+}
+struct TaskDragHandle: NSViewRepresentable {
+    var id: UUID
+    var onBegin: () -> Void
+    var onMove: (CGSize) -> Void
+    var onEnd: (Bool) -> Void
+    func makeNSView(context: Context) -> Handle { let view = Handle(); updateNSView(view, context: context); return view }
+    func updateNSView(_ view: Handle, context: Context) { view.onBegin = onBegin; view.onMove = onMove; view.onEnd = onEnd }
+    final class Handle: NSView {
+        var onBegin: () -> Void = {}
+        var onMove: (CGSize) -> Void = { _ in }
+        var onEnd: (Bool) -> Void = { _ in }
+        private var origin = NSPoint.zero
+        private var dragging = false
+        override var acceptsFirstResponder: Bool { true }
+        override var mouseDownCanMoveWindow: Bool { false }
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+        override func resetCursorRects() { addCursorRect(bounds, cursor: .openHand) }
+        override func draw(_ dirtyRect: NSRect) {
+            let image = NSImage(systemSymbolName: "line.3.horizontal", accessibilityDescription: "拖动排序")?.withSymbolConfiguration(.init(paletteColors: [.secondaryLabelColor]))
+            image?.draw(in: NSRect(x: (bounds.width - 14) / 2, y: (bounds.height - 14) / 2, width: 14, height: 14))
+        }
+        override func mouseDown(with event: NSEvent) {
+            window?.makeFirstResponder(self); origin = event.locationInWindow; dragging = true; onBegin()
+        }
+        override func mouseDragged(with event: NSEvent) {
+            guard dragging else { return }
+            onMove(CGSize(width: event.locationInWindow.x - origin.x, height: origin.y - event.locationInWindow.y))
+        }
+        override func mouseUp(with event: NSEvent) {
+            guard dragging else { return }; mouseDragged(with: event); dragging = false; onEnd(true)
+        }
+        override func keyDown(with event: NSEvent) {
+            if event.keyCode == 53 && dragging { dragging = false; onEnd(false) } else { super.keyDown(with: event) }
+        }
+    }
+}
 struct TaskCard: View {
     @EnvironmentObject var store: Store
     var item: TaskItem
     var compact: Bool
     var edit: () -> Void
     var onReopen: () -> Void = {}
+    var dragHandle: AnyView? = nil
+    var moveUp: (() -> Void)? = nil
+    var moveDown: (() -> Void)? = nil
     @State private var deleting = false
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
+                if let dragHandle { dragHandle.frame(width: 20, height: 24).help("按住拖动，调整事项顺序").accessibilityLabel("拖动排序") }
                 if item.complete || item.steps.count == 1 {
                     Button {
                         if item.complete {
@@ -131,7 +181,7 @@ struct TaskCard: View {
                         Image(systemName: item.complete ? "checkmark.circle.fill" : "circle").font(.system(size: 21)).foregroundStyle(Palette.blue).frame(width: 24, height: 24)
                     }.buttonStyle(.plain).help(item.complete ? "设为未完成并返回进行中" : "完成事项").accessibilityLabel(item.complete ? "重新打开：\(item.title)" : "完成：\(item.title)")
                 }
-                Text(item.category).font(.system(size: 10, weight: .semibold)).foregroundStyle(Palette.blue).lineLimit(1).frame(maxWidth: compact ? 36 : 65).padding(.horizontal, 6).padding(.vertical, 4).background(Palette.blue.opacity(0.08), in: Capsule()).help(item.category)
+                Text(item.category).font(.system(size: 10, weight: .semibold)).foregroundStyle(Palette.category(item.category, categories: store.data.categories)).lineLimit(1).frame(maxWidth: compact ? 36 : 65).padding(.horizontal, 6).padding(.vertical, 4).background(Palette.category(item.category, categories: store.data.categories).opacity(0.08), in: Capsule()).help(item.category)
                 Text(item.title).font(.system(size: 14, weight: .semibold)).strikethrough(item.complete).foregroundStyle(item.complete ? .secondary : .primary).lineLimit(1).help(item.title).layoutPriority(1)
                 if let priority = item.priority {
                     Text(priority.rawValue).font(.system(size: 10, weight: .semibold)).foregroundStyle(Palette.priority(priority)).fixedSize()
@@ -143,7 +193,7 @@ struct TaskCard: View {
                 if let due = item.dueDate {
                     Image(systemName: "calendar").font(.system(size: 11)).foregroundStyle(!item.complete && Calendar.current.startOfDay(for: due) < Calendar.current.startOfDay(for: Date()) ? Color.orange : Color.secondary).help("DDL：\(due.formatted(date: .abbreviated, time: .omitted))")
                 } else if !item.dueText.isEmpty { Image(systemName: "clock").font(.system(size: 11)).foregroundStyle(.secondary).help("DDL：\(item.dueText)") }
-                Menu { Button("编辑事项", action: edit); Button("删除事项", role: .destructive) { deleting = true } } label: { Image(systemName: "ellipsis").frame(width: 20, height: 24) }.menuStyle(.borderlessButton).frame(width: 20).help("事项操作")
+                Menu { if let moveUp { Button("上移", action: moveUp) }; if let moveDown { Button("下移", action: moveDown) }; Button("编辑事项", action: edit); Button("删除事项", role: .destructive) { deleting = true } } label: { Image(systemName: "ellipsis").frame(width: 20, height: 24) }.menuStyle(.borderlessButton).frame(width: 20).help("事项操作")
             }
             if item.steps.count > 1 {
                 ScrollView(.horizontal, showsIndicators: true) {
@@ -183,6 +233,20 @@ struct Content: View {
     @State private var editing: TaskItem?
     @State private var newCategory = ""
     @State private var showingCategory = false
+    @State private var draggingTask: UUID?
+    @State private var previewOrder: [UUID]?
+    @State private var taskFrames: [UUID: CGRect] = [:]
+    @State private var dragSlots: [(UUID, CGRect)] = []
+    @State private var dragInside = false
+    @State private var dragInitialOrder: [UUID] = []
+    var canReorder: Bool { category == "全部事项" && search.isEmpty }
+    var displayItems: [TaskItem] {
+        guard let previewOrder else { return items }
+        let positions = Dictionary(uniqueKeysWithValues: previewOrder.enumerated().map { ($1, $0) })
+        return items.enumerated().sorted {
+            (positions[$0.element.id] ?? (previewOrder.count + $0.offset)) < (positions[$1.element.id] ?? (previewOrder.count + $1.offset))
+        }.map(\.element)
+    }
     var items: [TaskItem] { store.data.tasks.filter { (category == "全部事项" || $0.category == category) && (status == 2 || $0.complete == (status == 1)) && (search.isEmpty || $0.title.localizedCaseInsensitiveContains(search)) } }
     var body: some View {
         HStack(spacing: 0) {
@@ -210,12 +274,47 @@ struct Content: View {
                 ScrollView {
                     LazyVStack(spacing: 8) {
                         if items.isEmpty { VStack(spacing: 16) { Image(systemName: status == 1 ? "checkmark.seal" : "leaf").font(.system(size: 38, weight: .light)).foregroundStyle(Palette.blue); Text(search.isEmpty ? (status == 1 ? "完成的小事会收在这里" : "从一件小事开始") : "没有找到匹配的事项").font(.headline); Text("点击上方 +，写下要做的事。").font(.caption).foregroundStyle(.secondary) }.frame(maxWidth: .infinity).padding(.vertical, 65) }
-                        ForEach(items) { item in TaskCard(item: item, compact: compact, edit: { editing = item }, onReopen: { status = 0 }) }
+                        ForEach(displayItems) { item in
+                            TaskCard(item: item, compact: compact, edit: { editing = item }, onReopen: { status = 0 },
+                                dragHandle: canReorder ? AnyView(TaskDragHandle(id: item.id, onBegin: { startDragging(item.id) }, onMove: { updateDragging($0) }, onEnd: { finishDragging($0) })) : nil,
+                                moveUp: canReorder && items.first?.id != item.id ? { moveTask(item.id, by: -1) } : nil,
+                                moveDown: canReorder && items.last?.id != item.id ? { moveTask(item.id, by: 1) } : nil)
+                                .opacity(draggingTask == item.id ? 0.65 : 1)
+                                .background(GeometryReader { geometry in Color.clear.preference(key: TaskFrames.self, value: [item.id: geometry.frame(in: .named("taskList"))]) })
+                        }
                     }.padding(.bottom, 8)
-                }
+                }.coordinateSpace(name: "taskList").onPreferenceChange(TaskFrames.self) { taskFrames = $0 }.onExitCommand { finishDragging(false) }
             }.padding(compact ? 20 : 30).frame(maxWidth: .infinity, maxHeight: .infinity)
         }.padding(.top, 28).background(Palette.mist.opacity(0.78)).background(Glass()).foregroundStyle(Palette.ink).preferredColorScheme(.light).tint(Palette.blue).sheet(item: $editing) { Editor(item: $0).environmentObject(store) }
         .alert("添加类别", isPresented: $showingCategory) { TextField("类别名称", text: $newCategory); Button("添加") { store.addCategory(newCategory); newCategory = "" }; Button("取消", role: .cancel) {} }
+    }
+    func startDragging(_ id: UUID) {
+        guard canReorder else { return }
+        previewOrder = items.map(\.id)
+        dragInitialOrder = items.map(\.id)
+        dragSlots = items.compactMap { item in taskFrames[item.id].map { (item.id, $0) } }
+        dragInside = false
+        draggingTask = id
+    }
+    func updateDragging(_ delta: CGSize) {
+        guard let id = draggingTask, let source = dragSlots.first(where: { $0.0 == id }), var order = previewOrder,
+              let from = order.firstIndex(of: id), !dragSlots.isEmpty else { return }
+        let point = CGPoint(x: source.1.minX + 20 + delta.width, y: source.1.midY + delta.height)
+        let bounds = dragSlots.map(\.1).reduce(CGRect.null) { $0.union($1) }
+        dragInside = bounds.insetBy(dx: 0, dy: -8).contains(point)
+        guard dragInside, let to = dragSlots.indices.min(by: { abs(dragSlots[$0].1.midY - point.y) < abs(dragSlots[$1].1.midY - point.y) }), let destination = dragInitialOrder.firstIndex(of: dragSlots[to].0), destination != from else { return }
+        order.move(fromOffsets: IndexSet(integer: from), toOffset: destination > from ? destination + 1 : destination)
+        previewOrder = order
+    }
+    func finishDragging(_ commit: Bool) {
+        if commit && dragInside, let order = previewOrder, order != items.map(\.id) { store.reorder(order) }
+        draggingTask = nil; previewOrder = nil; dragSlots = []; dragInitialOrder = []; dragInside = false
+    }
+    func moveTask(_ id: UUID, by delta: Int) {
+        var order = items.map(\.id)
+        guard let source = order.firstIndex(of: id), order.indices.contains(source + delta) else { return }
+        order.swapAt(source, source + delta)
+        store.reorder(order)
     }
     func summary(_ title: String, count: Int, icon: String) -> some View {
         HStack(spacing: 12) {
@@ -224,7 +323,7 @@ struct Content: View {
             Spacer()
         }.padding(16).frame(maxWidth: .infinity).background(.white.opacity(0.7), in: RoundedRectangle(cornerRadius: 16))
     }
-    func categoryButton(_ name: String, icon: String) -> some View { Button { category = name } label: { HStack { Image(systemName: icon); Text(name); Spacer(); Text("\(store.data.tasks.filter { !$0.complete && (name == "全部事项" || $0.category == name) }.count)").font(.caption).foregroundStyle(.secondary) }.padding(11).contentShape(Rectangle()).foregroundStyle(category == name ? Palette.blue : Palette.ink).background(category == name ? Palette.blue.opacity(0.1) : Color.clear, in: RoundedRectangle(cornerRadius: 10)) }.buttonStyle(.plain) }
+    func categoryButton(_ name: String, icon: String) -> some View { Button { category = name } label: { HStack { Image(systemName: icon).foregroundStyle(Palette.category(name, categories: store.data.categories)); Text(name); Spacer(); Text("\(store.data.tasks.filter { !$0.complete && (name == "全部事项" || $0.category == name) }.count)").font(.caption).foregroundStyle(.secondary) }.padding(11).contentShape(Rectangle()).foregroundStyle(category == name ? Palette.category(name, categories: store.data.categories) : Palette.ink).background(category == name ? Palette.category(name, categories: store.data.categories).opacity(0.1) : Color.clear, in: RoundedRectangle(cornerRadius: 10)) }.buttonStyle(.plain) }
 }
 
 final class EdgeWindow: NSWindow {
@@ -358,6 +457,28 @@ if CommandLine.arguments.contains("--self-test") {
     }
     priorityItem.priority = nil; restored.put(priorityItem)
     assert(Store(url: url).data.tasks.first(where: { $0.id == priorityItem.id })?.priority == nil)
+    let orderA = TaskItem(title: "排序 A", category: "工作", steps: [Step(title: "完成")])
+    let orderB = TaskItem(title: "排序 B", category: "学习", steps: [Step(title: "完成", done: true)])
+    let orderC = TaskItem(title: "排序 C", category: "工作", steps: [Step(title: "第一步", done: true), Step(title: "第二步")], priority: .urgent)
+    let orderStore = Store(url: folder.appendingPathComponent("ordering.json"))
+    orderStore.put(orderC); orderStore.put(orderB); orderStore.put(orderA)
+    orderStore.reorder([orderC.id, orderA.id])
+    assert(orderStore.data.tasks.map(\.id) == [orderC.id, orderB.id, orderA.id])
+    assert(Store(url: orderStore.url).data.tasks.map(\.id) == [orderC.id, orderB.id, orderA.id])
+    let staleOrder = Store(url: orderStore.url)
+    orderStore.setProgress(orderC.id, orderC.steps[1].id)
+    staleOrder.reorder([orderA.id, orderA.id, UUID(), orderC.id])
+    let orderedResult = Store(url: orderStore.url)
+    assert(orderedResult.data.tasks.map(\.id) == [orderA.id, orderB.id, orderC.id])
+    assert(orderedResult.data.tasks.last!.complete && orderedResult.data.tasks.last!.priority == .urgent)
+    let rgbWork = CategoryColors.rgb(for: "工作", categories: ["工作", "学习", "生活"])
+    let rgbStudy = CategoryColors.rgb(for: "学习", categories: ["工作", "学习", "生活"])
+    assert(rgbWork.0 != rgbStudy.0)
+    let customBefore = CategoryColors.rgb(for: "爱好", categories: ["工作", "爱好"])
+    let customAfter = CategoryColors.rgb(for: "爱好", categories: ["工作", "爱好", "旅行"])
+    assert(customBefore.0 == customAfter.0 && customBefore.1 == customAfter.1 && customBefore.2 == customAfter.2)
+    let another = CategoryColors.rgb(for: "旅行", categories: ["工作", "爱好", "旅行"])
+    assert(customAfter.0 != another.0 || customAfter.1 != another.1 || customAfter.2 != another.2)
     let old = Data("{\"title\":\"旧数据\",\"id\":\"00000000-0000-0000-0000-000000000001\",\"category\":\"工作\",\"dueText\":\"\",\"steps\":[]}".utf8)
     let decoded = try! JSONDecoder().decode(TaskItem.self, from: old)
     assert(decoded.priority == nil)
@@ -369,7 +490,7 @@ if CommandLine.arguments.contains("--self-test") {
     assert(merged.data.tasks.contains { $0.id == single.id })
     assert((try? SharedDisk.read(url.appendingPathExtension("backup"))) != nil)
     try? FileManager.default.removeItem(at: folder)
-    print("PASS: progress 3→2, prefix completion, repeated selection, persistence, final completion, single task, categories, stale merge, backup, optional priorities, legacy decode, first-stage reset to zero, reopen completed single and multi tasks")
+    print("PASS: progress 3→2, prefix completion, repeated selection, persistence, final completion, single task, categories, stale merge, backup, optional priorities, legacy decode, first-stage reset to zero, reopen completed single and multi tasks, filtered reorder, persisted order, concurrent progress preserved")
 } else {
     let app = NSApplication.shared
     let delegate = Delegate()

@@ -48,6 +48,8 @@ Prefer manual installation? Download an app ZIP from [Releases](https://github.c
 - **Two-line step cards.** Category, title, priority and completion count stay together; the connected steps sit underneath.
 - **Optional priority.** None, urgent, normal, or low. Priorities are labels and do not automatically reorder tasks.
 - **Flexible deadlines.** Choose a date, write “this weekend,” or leave it blank. Text deadlines are not automatically parsed.
+- **Your own order.** Drag the handle in All tasks to move items up or down. Order is saved and used by desktop widgets. The task menu also offers Move up / Move down. Sorting is available when not searching; hidden tasks keep their positions.
+- **Category colors.** Work, Learning and Life use different colors; custom categories receive a stable color shared by the sidebar, cards and widgets.
 - **Your own categories.** Start with Work, Learning and Life, or add categories you can reuse.
 - **Local by default.** No account, sync service, analytics or third-party runtime dependency.
 

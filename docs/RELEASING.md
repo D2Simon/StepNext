@@ -8,7 +8,7 @@
 ./scripts/package.sh
 ```
 
-`dist/` 中生成 `StepNext-1.2.2-macOS-arm64-adhoc.zip` 及 SHA-256 校验文件。ZIP 只包含应用、MIT 许可和安装说明。不要把 `.build/`、个人数据目录、签名证书或整个本机工作目录上传。
+`dist/` 中生成 `StepNext-1.3.0-macOS-arm64-adhoc.zip` 及 SHA-256 校验文件。ZIP 只包含应用、MIT 许可和安装说明。不要把 `.build/`、个人数据目录、签名证书或整个本机工作目录上传。
 
 在 GitHub Release 中把这个包标记为 **Pre-release / 测试版**，并写明未公证、可能被 macOS 拦截。建议同时提供源码。不应把普通测试包更名为 `notarized`。
 

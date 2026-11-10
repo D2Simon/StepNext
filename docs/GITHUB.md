@@ -20,13 +20,13 @@ git push origin main
 ./scripts/test.sh
 ./scripts/build.sh
 ./scripts/package.sh
-bash Tests/InstallerIntegration.sh dist/StepNext-1.2.2-macOS-arm64-adhoc.zip
+bash Tests/InstallerIntegration.sh dist/StepNext-1.3.0-macOS-arm64-adhoc.zip
 ```
 
-创建 `v1.2.2` GitHub Release，上传以下两个文件：
+创建 `v1.3.0` GitHub Release，上传以下两个文件：
 
-- `StepNext-1.2.2-macOS-arm64-adhoc.zip`
-- `StepNext-1.2.2-macOS-arm64-adhoc.zip.sha256`
+- `StepNext-1.3.0-macOS-arm64-adhoc.zip`
+- `StepNext-1.3.0-macOS-arm64-adhoc.zip.sha256`
 
 测试包标记 Pre-release，说明使用 `docs/RELEASE_NOTES.md`。可以附上 `install.sh` 和源码 ZIP。
 

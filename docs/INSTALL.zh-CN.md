@@ -22,7 +22,7 @@ bash install.sh
 - 默认位置：`/Applications/StepNext.app`。
 - 没有系统目录写权限时：`~/Applications/StepNext.app`。
 - 自定义位置：`bash install.sh --destination "$HOME/Applications"`。
-- 已下载 ZIP：`bash install.sh --archive /path/to/StepNext-1.2.2-macOS-arm64-adhoc.zip`，旁边必须有同名 `.sha256`。
+- 已下载 ZIP：`bash install.sh --archive /path/to/StepNext-1.3.0-macOS-arm64-adhoc.zip`，旁边必须有同名 `.sha256`。
 - 只安装不打开：`bash install.sh --no-open`。
 - Fork 仓库：`bash install.sh --repo owner/repo`。
 

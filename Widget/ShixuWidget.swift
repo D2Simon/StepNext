@@ -19,7 +19,7 @@ struct FinishNextStep: AppIntent {
         return .result()
     }
 }
-struct TaskEntry: TimelineEntry { let date: Date; var tasks: [TaskItem]; var failed = false }
+struct TaskEntry: TimelineEntry { let date: Date; var tasks: [TaskItem]; var failed = false; var categories = ["工作", "学习", "生活"] }
 struct Provider: TimelineProvider {
     func placeholder(in context: Context) -> TaskEntry { TaskEntry(date: Date(), tasks: [TaskItem(title: "准备下周的计划", category: "工作", steps: [Step(title: "收集想法", done: true), Step(title: "整理清单")]), TaskItem(title: "读书二十分钟", category: "学习", steps: [Step(title: "完成")])]) }
     func getSnapshot(in context: Context, completion: @escaping (TaskEntry) -> Void) { completion(context.isPreview ? placeholder(in: context) : load()) }
@@ -28,7 +28,7 @@ struct Provider: TimelineProvider {
     }
     func load() -> TaskEntry {
         do { let url = try SharedDisk.location(); let archive = try SharedDisk.transact(at: url) { try SharedDisk.read(url) }
-            return TaskEntry(date: Date(), tasks: archive.tasks.filter { !$0.complete }) }
+            return TaskEntry(date: Date(), tasks: archive.tasks.filter { !$0.complete }, categories: archive.categories) }
         catch { return TaskEntry(date: Date(), tasks: [], failed: true) }
     }
 }
@@ -36,6 +36,10 @@ struct WidgetView: View {
     @Environment(\.widgetFamily) var family
     let entry: TaskEntry
     private let blue = Color(red: 0.145, green: 0.388, blue: 0.922)
+    private func categoryColor(_ name: String) -> Color {
+        let rgb = CategoryColors.rgb(for: name, categories: entry.categories)
+        return Color(red: rgb.0, green: rgb.1, blue: rgb.2)
+    }
     var isWide: Bool { family == .systemExtraLarge }
     var isPortrait: Bool { if #available(macOS 27.0, *) { return family == .systemExtraLargePortrait }; return false }
     var detailed: Bool { family == .systemLarge || isWide || isPortrait }
@@ -91,7 +95,7 @@ struct WidgetView: View {
                         Button(intent: FinishNextStep(taskID: item.id.uuidString, stepID: item.steps.first(where: { !$0.done })?.id.uuidString ?? "")) {
                             Image(systemName: "circle").font(.system(size: 18)).foregroundStyle(blue).frame(width: 20, height: 22)
                         }.buttonStyle(.plain).accessibilityLabel(item.steps.count > 1 ? "完成下一步：\(item.title)" : "完成：\(item.title)")
-                        Text(item.category).font(.system(size: 9, weight: .medium)).foregroundStyle(blue).lineLimit(1).frame(maxWidth: 36)
+                        Text(item.category).font(.system(size: 9, weight: .medium)).foregroundStyle(categoryColor(item.category)).lineLimit(1).frame(maxWidth: 36)
                         Text(item.title).font(.system(size: 12, weight: .semibold)).lineLimit(1).layoutPriority(1)
                         if let priority = item.priority { Text(priority.rawValue).font(.system(size: 9, weight: .semibold)).foregroundStyle(priority == .urgent ? Color(red: 0.72, green: 0.25, blue: 0.06) : (priority == .normal ? blue : .secondary)).fixedSize() }
                         Spacer(minLength: 0)

@@ -17,9 +17,10 @@ end = source.index('struct Editor:', start)
 source = source[:start] + 'struct Glass: View { var body: some View { Palette.mist } }\n' + source[end:]
 source = source.replace('ScrollView(.horizontal, showsIndicators: true) {', 'Group {')
 source = source.replace('ScrollView {', 'Group {').replace('LazyVStack(spacing: 8)', 'VStack(spacing: 8)')
-start = source.index('                Menu { Button("编辑事项", action: edit)')
+start = source.index('                Menu {')
 end = source.index('\n            }', start)
 source = source[:start] + '                Image(systemName: "ellipsis").font(.system(size: 13)).foregroundStyle(Palette.blue).frame(width: 20, height: 24)' + source[end:]
+source = source.replace('AnyView(TaskDragHandle(id: item.id, onBegin: { startDragging(item.id) }, onMove: { updateDragging($0) }, onEnd: { finishDragging($0) }))', 'AnyView(Image(systemName: \"line.3.horizontal\").foregroundStyle(Palette.muted))')
 lines = source.splitlines()
 for index, line in enumerate(lines):
     if 'HStack { Picker("状态"' in line:
@@ -33,7 +34,7 @@ for index, line in enumerate(lines):
                         HStack { Image(systemName: "magnifyingglass"); Text("搜索事项"); Spacer() }.font(.system(size: 12)).foregroundStyle(Palette.muted).padding(10).frame(width: 160).background(.white.opacity(0.8), in: RoundedRectangle(cornerRadius: 10))
                     }
                 }'''
-source = '\n'.join(lines).replace('ForEach(items) { item in', 'ForEach(Array(items.prefix(4))) { item in')
+source = '\n'.join(lines).replace('ForEach(displayItems) { item in', 'ForEach(Array(displayItems.prefix(4))) { item in')
 widget = (root / 'Widget/ShixuWidget.swift').read_text().split('#if !SHIXU_TESTING')[0]
 widget = widget.replace('.containerBackground(for: .widget)', '.background').replace('@Environment(\\.widgetFamily) var family', 'var family: WidgetFamily = .systemLarge')
 (scratch / 'WidgetViews.swift').write_text(widget)
