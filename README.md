@@ -15,7 +15,7 @@ StepNext（拾序）is a native macOS to-do and progress manager with a blue-and
 
 ![StepNext overview](docs/screenshots/overview.png)
 
-*All previews use fictional demo records. Images are rendered from the app's views; system menus and scrolling containers use a static presentation. No personal tasks, accounts, or desktop screenshots are included.*
+*All previews use fictional demo records. Images are rendered from the app's views; system menus, native editors and scrolling containers use a static presentation. No personal tasks, accounts, or desktop screenshots are included.*
 
 ## Install
 
@@ -32,7 +32,7 @@ Already downloaded or cloned this repository? Just run:
 bash install.sh
 ```
 
-The [installer](install.sh) downloads the newest compatible GitHub Release, checks its SHA-256 checksum and code-signature integrity, installs `StepNext.app`, and registers its widget extension. It uses `/Applications` when writable, otherwise `~/Applications`. It preserves task data and keeps a backup of the previous application when updating. Quit StepNext before updating.
+The [installer](install.sh) downloads the newest compatible GitHub Release, checks its SHA-256 checksum and code-signature integrity, installs `StepNext.app`, and registers its widget extension. It uses `/Applications` when writable, otherwise `~/Applications`. It preserves task and memo data and keeps a backup of the previous application when updating. Quit StepNext before updating.
 
 Then **right-click the desktop → Edit Widgets → search “StepNext”**. Add the size you like. You can use the widget while the main app is closed; open the app to add or edit tasks.
 
@@ -66,6 +66,14 @@ Click a step to set how far you've completed—not just to toggle that one check
 | Click the final step | The whole task is complete and leaves the pending list |
 
 A simple, single-step task completes directly. To reopen any completed task, click its leading checked circle in **Completed**: all steps are cleared and the view switches to **In progress**. There is no timed undo banner.
+
+## A place for longer thoughts
+
+![Memo workspace with fictional content](docs/screenshots/memos.png)
+
+Choose **备忘录 (Memos)** in the sidebar, then **新建备忘录 (New memo)**. Write a title and as much plain text as you need, with line breaks, scrolling, copy and paste. Keep multiple memos and search their titles or contents. Edits save automatically, including when you leave the page or quit. A character counter and deletion confirmation are included.
+
+Memos stay on your Mac in a separate `memos.json` file beside the task archive; `memos.json.backup` retains the previous save. Edit memos in the main application.
 
 ## On your desktop
 

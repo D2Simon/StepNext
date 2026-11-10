@@ -15,6 +15,11 @@ source = (root / 'Source/main.swift').read_text().split('if CommandLine.argument
 start = source.index('struct Glass:')
 end = source.index('struct Editor:', start)
 source = source[:start] + 'struct Glass: View { var body: some View { Palette.mist } }\n' + source[end:]
+# AppKit-backed editors are represented by their current text in ImageRenderer previews.
+source = source.replace('TextField("搜索备忘录", text: $search).textFieldStyle(.roundedBorder).accessibilityLabel("搜索备忘录")', 'HStack { Image(systemName: "magnifyingglass"); Text("搜索备忘录"); Spacer() }.font(.system(size: 12)).foregroundStyle(Palette.muted).padding(9).background(.white, in: RoundedRectangle(cornerRadius: 8))')
+source = source.replace('TextField("标题", text: title).font(.system(size: 23, weight: .bold)).textFieldStyle(.plain).focused($titleFocused).accessibilityLabel("备忘录标题")', 'Text(memo?.displayTitle ?? "标题").font(.system(size: 23, weight: .bold)).frame(maxWidth: .infinity, alignment: .leading)')
+source = source.replace('TextEditor(text: text).font(.system(size: 15)).lineSpacing(6).scrollContentBackground(.hidden).accessibilityLabel("备忘录正文")', 'Text(memo?.text ?? "").font(.system(size: 15)).lineSpacing(6).frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)')
+source = source.replace('}.padding(14).frame(width: 218)', '}.frame(maxHeight: .infinity, alignment: .top).padding(14).frame(width: 218)')
 source = source.replace('ScrollView(.horizontal, showsIndicators: true) {', 'Group {')
 source = source.replace('ScrollView {', 'Group {').replace('LazyVStack(spacing: 8)', 'VStack(spacing: 8)')
 start = source.index('                Menu {')
@@ -51,11 +56,16 @@ MainActor.assumeIsolated {
         guard let rendered = renderer.nsImage, let tiff = rendered.tiffRepresentation, let bitmap = NSBitmapImageRep(data: tiff), let png = bitmap.representation(using: .png, properties: [:]) else { fatalError("Rendering failed") }
         try! png.write(to: folder.appendingPathComponent(filename))
     }
-    let overview = Content().environmentObject(store).frame(width: 1080, height: 800)
+    let demoMemosURL = URL(fileURLWithPath: CommandLine.arguments[2]).deletingLastPathComponent().appendingPathComponent("demo-memos.json")
+    let demoNotes = DemoData.memos
+    try! JSONEncoder().encode(demoNotes).write(to: demoMemosURL, options: .atomic)
+    let memos = MemoStore(url: demoMemosURL)
+    let overview = Content().environmentObject(store).environmentObject(memos).frame(width: 1080, height: 800)
         .overlay(alignment: .topLeading) {
             HStack(spacing: 7) { Circle().fill(Color.red.opacity(0.75)); Circle().fill(Color.orange.opacity(0.75)); Circle().fill(Color.green.opacity(0.75)) }.frame(width: 48, height: 10).padding(.leading, 18).padding(.top, 14)
         }.clipShape(RoundedRectangle(cornerRadius: 20))
     save(overview, "overview.png")
+    save(MemoWorkspace(selected: demoNotes[0].id).environmentObject(memos).frame(width: 880, height: 660).background(Palette.mist), "memos.png")
     let cards = VStack(spacing: 8) { ForEach(Array(DemoData.items.prefix(4))) { TaskCard(item: $0, compact: false, edit: {}) } }
         .padding(20).frame(width: 760).fixedSize(horizontal: false, vertical: true).background(Palette.mist).environmentObject(store)
     save(cards, "tasks.png")

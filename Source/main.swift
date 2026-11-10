@@ -72,6 +72,161 @@ final class Store: ObservableObject {
     }
     func addCategory(_ text: String) { let name = text.trimmingCharacters(in: .whitespacesAndNewlines); guard !name.isEmpty else { return }; change { if !$0.categories.contains(name) { $0.categories.append(name) } } }
 }
+struct Memo: Codable, Identifiable, Equatable {
+    var id = UUID()
+    var title = ""
+    var text = ""
+    var updatedAt = Date()
+    var displayTitle: String { title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "未命名备忘录" : title }
+    var preview: String { text.split(whereSeparator: \.isNewline).first.map(String.init) ?? "还没有内容" }
+}
+final class MemoStore: ObservableObject {
+    @Published private(set) var notes: [Memo] = []
+    @Published private(set) var pending = false
+    @Published private(set) var error: String?
+    let url: URL
+    private var saveWork: DispatchWorkItem?
+    private var loadFailed = false
+    init(url: URL? = nil) {
+        do {
+            self.url = try url ?? SharedDisk.location().deletingLastPathComponent().appendingPathComponent("memos.json")
+        } catch {
+            self.url = SharedDisk.legacyURL.deletingLastPathComponent().appendingPathComponent("memos.json")
+            self.error = "无法访问备忘录存储位置。"; loadFailed = true; return
+        }
+        do {
+            notes = try SharedDisk.transact(at: self.url) {
+                guard FileManager.default.fileExists(atPath: self.url.path) else { return [] }
+                return try JSONDecoder().decode([Memo].self, from: Data(contentsOf: self.url))
+            }
+        } catch { self.error = "备忘录读取失败，原文件已保留：\(error.localizedDescription)"; loadFailed = true }
+    }
+    var editable: Bool { !loadFailed }
+    @discardableResult func add() -> UUID? {
+        guard editable else { return nil }
+        let memo = Memo(); notes.insert(memo, at: 0); scheduleSave(); return memo.id
+    }
+    func update(_ id: UUID, title: String? = nil, text: String? = nil) {
+        guard editable, let index = notes.firstIndex(where: { $0.id == id }) else { return }
+        if let title { notes[index].title = title }
+        if let text { notes[index].text = text }
+        notes[index].updatedAt = Date(); scheduleSave()
+    }
+    func remove(_ id: UUID) { guard editable else { return }; notes.removeAll { $0.id == id }; scheduleSave(); flush() }
+    private func scheduleSave() {
+        pending = true; saveWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in self?.flush() }
+        saveWork = work; DispatchQueue.main.asyncAfter(deadline: .now() + 0.35, execute: work)
+    }
+    @discardableResult func flush() -> Bool {
+        saveWork?.cancel(); saveWork = nil
+        guard pending else { return true }
+        guard editable else { return false }
+        do {
+            let encoded = try JSONEncoder().encode(notes)
+            try SharedDisk.transact(at: url) {
+                if FileManager.default.fileExists(atPath: url.path) {
+                    try Data(contentsOf: url).write(to: url.appendingPathExtension("backup"), options: .atomic)
+                }
+                try encoded.write(to: url, options: .atomic)
+            }
+            pending = false; error = nil; return true
+        } catch { self.error = "备忘录保存失败：\(error.localizedDescription)"; return false }
+    }
+}
+struct MemoWorkspace: View {
+    @EnvironmentObject var memos: MemoStore
+    @State private var selected: UUID?
+    @State private var search = ""
+    @State private var deleting: UUID?
+    init(selected: UUID? = nil) { _selected = State(initialValue: selected) }
+    var filtered: [Memo] { memos.notes.filter { search.isEmpty || $0.title.localizedCaseInsensitiveContains(search) || $0.text.localizedCaseInsensitiveContains(search) } }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("备忘录").font(.system(size: 30, weight: .bold))
+                    Text("随手记下想法，慢慢展开。").foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button { search = ""; selected = memos.add() } label: { Label("新建备忘录", systemImage: "square.and.pencil") }
+                    .buttonStyle(PrimaryButton()).keyboardShortcut("n").disabled(!memos.editable)
+            }
+            if let error = memos.error {
+                HStack { Text(error).font(.caption).foregroundStyle(.red).textSelection(.enabled); if memos.editable { Button("重试保存") { memos.flush() } } }
+            }
+            HStack(spacing: 0) {
+                VStack(spacing: 12) {
+                    TextField("搜索备忘录", text: $search).textFieldStyle(.roundedBorder).accessibilityLabel("搜索备忘录")
+                    ScrollView {
+                        LazyVStack(spacing: 8) {
+                            ForEach(filtered) { memo in
+                                Button { memos.flush(); selected = memo.id } label: {
+                                    VStack(alignment: .leading, spacing: 7) {
+                                        Text(memo.displayTitle).font(.system(size: 13, weight: .semibold)).lineLimit(1)
+                                        Text(memo.preview).font(.system(size: 12)).foregroundStyle(Palette.muted).lineLimit(2)
+                                        Text(memo.updatedAt, format: .dateTime.month().day().hour().minute()).font(.system(size: 10)).foregroundStyle(.secondary)
+                                    }.frame(maxWidth: .infinity, alignment: .leading).padding(12)
+                                        .background(selected == memo.id ? Palette.blue.opacity(0.1) : .white.opacity(0.5), in: RoundedRectangle(cornerRadius: 12))
+                                        .overlay(RoundedRectangle(cornerRadius: 12).strokeBorder(selected == memo.id ? Palette.blue.opacity(0.25) : .clear))
+                                        .contentShape(Rectangle())
+                                }.buttonStyle(.plain).accessibilityLabel(memo.displayTitle)
+                            }
+                            if filtered.isEmpty { Text(search.isEmpty ? "还没有备忘录" : "没有匹配的备忘录").font(.caption).foregroundStyle(.secondary).padding(.vertical, 24) }
+                        }
+                    }
+                }.padding(14).frame(width: 218)
+                Divider()
+                if let id = selected, memos.notes.contains(where: { $0.id == id }) {
+                    MemoEditor(id: id, onDelete: { deleting = id }).id(id)
+                } else {
+                    VStack(spacing: 14) {
+                        Image(systemName: "note.text").font(.system(size: 40, weight: .light)).foregroundStyle(Palette.blue)
+                        Text("给想法留一页空白").font(.headline)
+                        Text("新建备忘录，直接输入长文字。\n内容会自动保存在这台 Mac 上。").font(.callout).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                    }.frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }.background(.white.opacity(0.65), in: RoundedRectangle(cornerRadius: 16)).clipShape(RoundedRectangle(cornerRadius: 16))
+        }.padding(30).frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onAppear { if selected == nil { selected = memos.notes.first?.id } }
+        .onDisappear { memos.flush() }
+        .alert("删除这条备忘录？", isPresented: Binding(get: { deleting != nil }, set: { if !$0 { deleting = nil } })) {
+            Button("取消", role: .cancel) { deleting = nil }
+            Button("删除", role: .destructive) { if let id = deleting { memos.remove(id); selected = memos.notes.first?.id }; deleting = nil }
+        } message: { Text("这条备忘录的标题和正文将被移除。") }
+    }
+}
+struct MemoEditor: View {
+    @EnvironmentObject var memos: MemoStore
+    let id: UUID
+    var onDelete: () -> Void
+    @FocusState private var titleFocused: Bool
+    var memo: Memo? { memos.notes.first { $0.id == id } }
+    var title: Binding<String> { Binding(get: { memo?.title ?? "" }, set: { memos.update(id, title: $0) }) }
+    var text: Binding<String> { Binding(get: { memo?.text ?? "" }, set: { memos.update(id, text: $0) }) }
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Label(memos.error != nil ? "尚未保存" : (memos.pending ? "保存中…" : "已自动保存"), systemImage: memos.error != nil ? "exclamationmark.circle" : (memos.pending ? "clock" : "checkmark.circle")).font(.caption).foregroundStyle(Palette.muted)
+                Spacer()
+                Button(role: .destructive, action: onDelete) { Image(systemName: "trash").frame(width: 24, height: 24) }.buttonStyle(.plain).help("删除备忘录").accessibilityLabel("删除备忘录")
+            }
+            TextField("标题", text: title).font(.system(size: 23, weight: .bold)).textFieldStyle(.plain).focused($titleFocused).accessibilityLabel("备忘录标题")
+            Divider()
+            ZStack(alignment: .topLeading) {
+                if memo?.text.isEmpty != false { Text("从这里开始写，想写多长都可以…").font(.system(size: 15)).foregroundStyle(.tertiary).padding(.top, 8).padding(.leading, 5).allowsHitTesting(false) }
+                TextEditor(text: text).font(.system(size: 15)).lineSpacing(6).scrollContentBackground(.hidden).accessibilityLabel("备忘录正文")
+            }
+            HStack {
+                Text("\(memo?.text.count ?? 0) 字").font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Text("仅保存在本机").font(.caption).foregroundStyle(.secondary)
+            }
+        }.padding(22).frame(maxWidth: .infinity, maxHeight: .infinity).disabled(!memos.editable)
+        .onAppear { DispatchQueue.main.async { titleFocused = memo?.title.isEmpty == true } }
+    }
+}
+
 struct Glass: NSViewRepresentable {
     func makeNSView(context: Context) -> NSVisualEffectView { let v = NSVisualEffectView(); v.material = .underWindowBackground; v.blendingMode = .behindWindow; v.state = .active; return v }
     func updateNSView(_ nsView: NSVisualEffectView, context: Context) {}
@@ -226,6 +381,8 @@ struct TaskCard: View {
 }
 struct Content: View {
     @EnvironmentObject var store: Store
+    @EnvironmentObject var memos: MemoStore
+    @State private var showingMemos = false
     var compact = false
     @State private var category = "全部事项"
     @State private var status = 0
@@ -256,11 +413,20 @@ struct Content: View {
                     Text("把日子，一步步理顺。").font(.caption).foregroundStyle(.secondary)
                     VStack(spacing: 6) { categoryButton("全部事项", icon: "square.grid.2x2"); ForEach(store.data.categories, id: \.self) { categoryButton($0, icon: "folder") } }
                     Button { showingCategory = true } label: { Label("添加类别", systemImage: "plus") }.buttonStyle(.plain).foregroundStyle(.secondary)
+                    Divider()
+                    Button { showingMemos = true } label: {
+                        HStack { Image(systemName: "note.text"); Text("备忘录"); Spacer(); Text("\(memos.notes.count)").font(.caption).foregroundStyle(.secondary) }
+                            .padding(11).contentShape(Rectangle()).foregroundStyle(showingMemos ? Palette.blue : Palette.ink)
+                            .background(showingMemos ? Palette.blue.opacity(0.1) : .clear, in: RoundedRectangle(cornerRadius: 10))
+                    }.buttonStyle(.plain)
                     Spacer()
                     Button { Delegate.shared.showWidget() } label: { Label("桌面小窗 · 支持贴边收纳", systemImage: "macwindow.on.rectangle") }.buttonStyle(.plain)
                     Label("本机保存", systemImage: "lock.shield").font(.caption2).foregroundStyle(.secondary)
                 }.padding(22).frame(width: 204).background(.white.opacity(0.6)).overlay(alignment: .trailing) { Rectangle().fill(Palette.blue.opacity(0.08)).frame(width: 1) }
             }
+            if showingMemos && !compact {
+                MemoWorkspace()
+            } else {
             VStack(alignment: .leading, spacing: compact ? 16 : 24) {
                 HStack { VStack(alignment: .leading, spacing: 6) { Text(compact ? "StepNext · 桌面" : category).font(.system(size: compact ? 21 : 30, weight: .bold)); if !compact { Text("\(store.data.tasks.filter { !$0.complete }.count) 件进行中，给每一小步留点空间。").foregroundStyle(.secondary) } }; Spacer(); Button { editing = TaskItem(title: "", category: category == "全部事项" ? (store.data.categories.first ?? "生活") : category, steps: [Step(title: "完成")]) } label: { Label(compact ? "添加" : "新建事项", systemImage: "plus") }.buttonStyle(PrimaryButton()).keyboardShortcut("n") }
                 if !compact {
@@ -285,6 +451,7 @@ struct Content: View {
                     }.padding(.bottom, 8)
                 }.coordinateSpace(name: "taskList").onPreferenceChange(TaskFrames.self) { taskFrames = $0 }.onExitCommand { finishDragging(false) }
             }.padding(compact ? 20 : 30).frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         }.padding(.top, 28).background(Palette.mist.opacity(0.78)).background(Glass()).foregroundStyle(Palette.ink).preferredColorScheme(.light).tint(Palette.blue).sheet(item: $editing) { Editor(item: $0).environmentObject(store) }
         .alert("添加类别", isPresented: $showingCategory) { TextField("类别名称", text: $newCategory); Button("添加") { store.addCategory(newCategory); newCategory = "" }; Button("取消", role: .cancel) {} }
     }
@@ -323,7 +490,7 @@ struct Content: View {
             Spacer()
         }.padding(16).frame(maxWidth: .infinity).background(.white.opacity(0.7), in: RoundedRectangle(cornerRadius: 16))
     }
-    func categoryButton(_ name: String, icon: String) -> some View { Button { category = name } label: { HStack { Image(systemName: icon).foregroundStyle(Palette.category(name, categories: store.data.categories)); Text(name); Spacer(); Text("\(store.data.tasks.filter { !$0.complete && (name == "全部事项" || $0.category == name) }.count)").font(.caption).foregroundStyle(.secondary) }.padding(11).contentShape(Rectangle()).foregroundStyle(category == name ? Palette.category(name, categories: store.data.categories) : Palette.ink).background(category == name ? Palette.category(name, categories: store.data.categories).opacity(0.1) : Color.clear, in: RoundedRectangle(cornerRadius: 10)) }.buttonStyle(.plain) }
+    func categoryButton(_ name: String, icon: String) -> some View { Button { showingMemos = false; category = name } label: { HStack { Image(systemName: icon).foregroundStyle(Palette.category(name, categories: store.data.categories)); Text(name); Spacer(); Text("\(store.data.tasks.filter { !$0.complete && (name == "全部事项" || $0.category == name) }.count)").font(.caption).foregroundStyle(.secondary) }.padding(11).contentShape(Rectangle()).foregroundStyle(!showingMemos && category == name ? Palette.category(name, categories: store.data.categories) : Palette.ink).background(!showingMemos && category == name ? Palette.category(name, categories: store.data.categories).opacity(0.1) : Color.clear, in: RoundedRectangle(cornerRadius: 10)) }.buttonStyle(.plain) }
 }
 
 final class EdgeWindow: NSWindow {
@@ -375,6 +542,7 @@ final class EdgeWindow: NSWindow {
 final class Delegate: NSObject, NSApplicationDelegate {
     static var shared: Delegate!
     let store = Store()
+    let memos = MemoStore()
     var main: NSWindow!
     var widget: NSWindow?
     var statusItem: NSStatusItem!
@@ -397,13 +565,19 @@ final class Delegate: NSObject, NSApplicationDelegate {
         window.appearance = NSAppearance(named: .aqua)
         window.title = compact ? "StepNext · 桌面小窗" : "StepNext"; window.titleVisibility = .hidden; window.titlebarAppearsTransparent = true; window.titlebarSeparatorStyle = .none; window.isOpaque = false; window.backgroundColor = .clear; window.isMovableByWindowBackground = true; window.isReleasedWhenClosed = false
         window.minSize = NSSize(width: compact ? 340 : 780, height: 440)
-        window.contentView = NSHostingView(rootView: Content(compact: compact).environmentObject(store).ignoresSafeArea())
+        window.contentView = NSHostingView(rootView: Content(compact: compact).environmentObject(store).environmentObject(memos).ignoresSafeArea())
         let frameName = compact ? "widget" : "main"; if !window.setFrameUsingName(frameName) { window.center() }; window.setFrameAutosaveName(frameName)
         if compact { window.startEdgeTracking(); window.level = .floating; window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary] }
         return window
     }
     @objc func showMain() { main.makeKeyAndOrderFront(nil); NSApp.activate(ignoringOtherApps: true) }
     @objc func showWidget() { if widget == nil { widget = makeWindow(compact: true) }; (widget as? EdgeWindow)?.reveal(); widget?.makeKeyAndOrderFront(nil) }
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        if memos.flush() { return .terminateNow }
+        showMain()
+        let alert = NSAlert(); alert.messageText = "备忘录尚未保存"; alert.informativeText = memos.error ?? "请稍后重试保存，避免丢失修改。"; alert.addButton(withTitle: "返回应用"); alert.runModal()
+        return .terminateCancel
+    }
     @objc func quit() { NSApp.terminate(nil) }
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool { showMain(); return true }
 }
@@ -489,6 +663,40 @@ if CommandLine.arguments.contains("--self-test") {
     assert(merged.data.categories.contains("并发分类"))
     assert(merged.data.tasks.contains { $0.id == single.id })
     assert((try? SharedDisk.read(url.appendingPathExtension("backup"))) != nil)
+    let taskBytes = try! Data(contentsOf: url)
+    let memoURL = folder.appendingPathComponent("memos.json")
+    let memos = MemoStore(url: memoURL)
+    let firstMemo = memos.add()!
+    let longText = String(repeating: "这是一段长文字，支持中文、English、🙂。\n下一行继续记录。\n", count: 1200)
+    memos.update(firstMemo, title: "长文测试", text: longText)
+    assert(memos.pending && memos.flush() && !memos.pending)
+    let secondMemo = memos.add()!
+    memos.update(secondMemo, text: "另一条独立备忘录")
+    assert(memos.flush())
+    let loadedMemos = MemoStore(url: memoURL)
+    assert(loadedMemos.notes.count == 2)
+    assert(loadedMemos.notes.first(where: { $0.id == firstMemo })?.text == longText)
+    assert(loadedMemos.notes.first(where: { $0.id == firstMemo })?.title == "长文测试")
+    assert(loadedMemos.notes.first(where: { $0.id == secondMemo })?.displayTitle == "未命名备忘录")
+    loadedMemos.remove(secondMemo)
+    assert(MemoStore(url: memoURL).notes.map(\.id) == [firstMemo])
+    assert((try! Data(contentsOf: url)) == taskBytes)
+    assert(FileManager.default.fileExists(atPath: memoURL.appendingPathExtension("backup").path))
+    let badMemoURL = folder.appendingPathComponent("malformed-memos.json")
+    let malformed = Data("not valid JSON".utf8); try! malformed.write(to: badMemoURL)
+    let invalidMemos = MemoStore(url: badMemoURL)
+    assert(!invalidMemos.editable && invalidMemos.add() == nil && invalidMemos.flush())
+    assert((try! Data(contentsOf: badMemoURL)) == malformed)
+    let retryURL = folder.appendingPathComponent("retry-memos.json")
+    let retryMemos = MemoStore(url: retryURL)
+    try! FileManager.default.createDirectory(at: retryURL, withIntermediateDirectories: false)
+    let retryID = retryMemos.add()!
+    retryMemos.update(retryID, text: longText)
+    assert(!retryMemos.flush() && retryMemos.pending && retryMemos.error != nil)
+    try! FileManager.default.removeItem(at: retryURL)
+    assert(retryMemos.flush() && !retryMemos.pending && retryMemos.error == nil)
+    assert(MemoStore(url: retryURL).notes.first?.text == longText)
+    print("PASS: memo long Unicode text, multiple notes, rename, reload, deletion, independent task data, backup, malformed-file protection, failed-save retry")
     try? FileManager.default.removeItem(at: folder)
     print("PASS: progress 3→2, prefix completion, repeated selection, persistence, final completion, single task, categories, stale merge, backup, optional priorities, legacy decode, first-stage reset to zero, reopen completed single and multi tasks, filtered reorder, persisted order, concurrent progress preserved")
 } else {
