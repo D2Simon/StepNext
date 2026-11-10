@@ -1,0 +1,393 @@
+// !$*UTF8*$!
+{
+"archiveVersion" = 1;
+"classes" = {
+};
+"objectVersion" = 56;
+"objects" = {
+"000000000000000000000001" = {
+"isa" = "PBXFileReference";
+"lastKnownFileType" = "sourcecode.swift";
+"path" = "Source/main.swift";
+"sourceTree" = "<group>";
+};
+"000000000000000000000002" = {
+"isa" = "PBXFileReference";
+"lastKnownFileType" = "sourcecode.swift";
+"path" = "Source/Shared.swift";
+"sourceTree" = "<group>";
+};
+"000000000000000000000003" = {
+"isa" = "PBXFileReference";
+"lastKnownFileType" = "sourcecode.swift";
+"path" = "Widget/ShixuWidget.swift";
+"sourceTree" = "<group>";
+};
+"000000000000000000000004" = {
+"isa" = "PBXFileReference";
+"lastKnownFileType" = "image.icns";
+"path" = "Assets/AppIcon.icns";
+"sourceTree" = "<group>";
+};
+"000000000000000000000005" = {
+"isa" = "PBXFileReference";
+"explicitFileType" = "wrapper.application";
+"path" = "拾序.app";
+"sourceTree" = "BUILT_PRODUCTS_DIR";
+};
+"000000000000000000000006" = {
+"isa" = "PBXFileReference";
+"explicitFileType" = "wrapper.app-extension";
+"path" = "ShixuWidget.appex";
+"sourceTree" = "BUILT_PRODUCTS_DIR";
+};
+"000000000000000000000007" = {
+"isa" = "PBXGroup";
+"children" = (
+"000000000000000000000005",
+"000000000000000000000006",
+);
+"name" = "Products";
+"sourceTree" = "<group>";
+};
+"000000000000000000000008" = {
+"isa" = "PBXFileReference";
+"lastKnownFileType" = "text.plist.xml";
+"path" = "Config/AppInfo.plist";
+"sourceTree" = "<group>";
+};
+"000000000000000000000009" = {
+"isa" = "PBXFileReference";
+"lastKnownFileType" = "text.plist.xml";
+"path" = "Config/WidgetInfo.plist";
+"sourceTree" = "<group>";
+};
+"00000000000000000000000A" = {
+"isa" = "PBXFileReference";
+"lastKnownFileType" = "text.plist.entitlements";
+"path" = "Config/App.entitlements";
+"sourceTree" = "<group>";
+};
+"00000000000000000000000B" = {
+"isa" = "PBXFileReference";
+"lastKnownFileType" = "text.plist.entitlements";
+"path" = "Config/Widget.entitlements";
+"sourceTree" = "<group>";
+};
+"00000000000000000000000C" = {
+"isa" = "PBXGroup";
+"children" = (
+"000000000000000000000001",
+"000000000000000000000002",
+"000000000000000000000003",
+"000000000000000000000004",
+"000000000000000000000008",
+"000000000000000000000009",
+"00000000000000000000000A",
+"00000000000000000000000B",
+"000000000000000000000007",
+);
+"sourceTree" = "<group>";
+};
+"00000000000000000000000D" = {
+"isa" = "XCBuildConfiguration";
+"buildSettings" = {
+"MACOSX_DEPLOYMENT_TARGET" = "14.0";
+"SDKROOT" = "macosx";
+"SWIFT_VERSION" = "5.0";
+"CLANG_ENABLE_MODULES" = "YES";
+"CODE_SIGN_STYLE" = "Automatic";
+"SWIFT_ACTIVE_COMPILATION_CONDITIONS" = "$(inherited) SIGNED_WIDGET_BUILD LOCAL_WIDGET_BUILD";
+"CODE_SIGN_IDENTITY" = "-";
+"DEVELOPMENT_TEAM" = "";
+"PRODUCT_NAME" = "拾序";
+"PRODUCT_BUNDLE_IDENTIFIER" = "local.shixu.app";
+"INFOPLIST_FILE" = "Config/AppInfo.plist";
+"CODE_SIGN_ENTITLEMENTS" = "Config/LocalApp.entitlements";
+"LD_RUNPATH_SEARCH_PATHS" = "$(inherited) @executable_path/../Frameworks";
+"SWIFT_OPTIMIZATION_LEVEL" = "-Onone";
+};
+"name" = "Debug";
+};
+"00000000000000000000000E" = {
+"isa" = "XCBuildConfiguration";
+"buildSettings" = {
+"MACOSX_DEPLOYMENT_TARGET" = "14.0";
+"SDKROOT" = "macosx";
+"SWIFT_VERSION" = "5.0";
+"CLANG_ENABLE_MODULES" = "YES";
+"CODE_SIGN_STYLE" = "Automatic";
+"SWIFT_ACTIVE_COMPILATION_CONDITIONS" = "$(inherited) SIGNED_WIDGET_BUILD LOCAL_WIDGET_BUILD";
+"CODE_SIGN_IDENTITY" = "-";
+"DEVELOPMENT_TEAM" = "";
+"PRODUCT_NAME" = "拾序";
+"PRODUCT_BUNDLE_IDENTIFIER" = "local.shixu.app";
+"INFOPLIST_FILE" = "Config/AppInfo.plist";
+"CODE_SIGN_ENTITLEMENTS" = "Config/LocalApp.entitlements";
+"LD_RUNPATH_SEARCH_PATHS" = "$(inherited) @executable_path/../Frameworks";
+"SWIFT_OPTIMIZATION_LEVEL" = "-O";
+};
+"name" = "Release";
+};
+"00000000000000000000000F" = {
+"isa" = "XCConfigurationList";
+"buildConfigurations" = (
+"00000000000000000000000D",
+"00000000000000000000000E",
+);
+"defaultConfigurationIsVisible" = 0;
+"defaultConfigurationName" = "Release";
+};
+"000000000000000000000010" = {
+"isa" = "XCBuildConfiguration";
+"buildSettings" = {
+"MACOSX_DEPLOYMENT_TARGET" = "14.0";
+"SDKROOT" = "macosx";
+"SWIFT_VERSION" = "5.0";
+"CLANG_ENABLE_MODULES" = "YES";
+"CODE_SIGN_STYLE" = "Automatic";
+"SWIFT_ACTIVE_COMPILATION_CONDITIONS" = "$(inherited) SIGNED_WIDGET_BUILD LOCAL_WIDGET_BUILD";
+"CODE_SIGN_IDENTITY" = "-";
+"DEVELOPMENT_TEAM" = "";
+"PRODUCT_NAME" = "ShixuWidget";
+"PRODUCT_BUNDLE_IDENTIFIER" = "local.shixu.app.widget";
+"INFOPLIST_FILE" = "Config/WidgetInfo.plist";
+"CODE_SIGN_ENTITLEMENTS" = "Config/LocalWidget.entitlements";
+"OTHER_SWIFT_FLAGS" = "$(inherited) -D WIDGET_EXTENSION";
+"SKIP_INSTALL" = "YES";
+"APPLICATION_EXTENSION_API_ONLY" = "YES";
+"LD_RUNPATH_SEARCH_PATHS" = "$(inherited) @executable_path/../Frameworks @executable_path/../../../../Frameworks";
+"SWIFT_OPTIMIZATION_LEVEL" = "-Onone";
+};
+"name" = "Debug";
+};
+"000000000000000000000011" = {
+"isa" = "XCBuildConfiguration";
+"buildSettings" = {
+"MACOSX_DEPLOYMENT_TARGET" = "14.0";
+"SDKROOT" = "macosx";
+"SWIFT_VERSION" = "5.0";
+"CLANG_ENABLE_MODULES" = "YES";
+"CODE_SIGN_STYLE" = "Automatic";
+"SWIFT_ACTIVE_COMPILATION_CONDITIONS" = "$(inherited) SIGNED_WIDGET_BUILD LOCAL_WIDGET_BUILD";
+"CODE_SIGN_IDENTITY" = "-";
+"DEVELOPMENT_TEAM" = "";
+"PRODUCT_NAME" = "ShixuWidget";
+"PRODUCT_BUNDLE_IDENTIFIER" = "local.shixu.app.widget";
+"INFOPLIST_FILE" = "Config/WidgetInfo.plist";
+"CODE_SIGN_ENTITLEMENTS" = "Config/LocalWidget.entitlements";
+"OTHER_SWIFT_FLAGS" = "$(inherited) -D WIDGET_EXTENSION";
+"SKIP_INSTALL" = "YES";
+"APPLICATION_EXTENSION_API_ONLY" = "YES";
+"LD_RUNPATH_SEARCH_PATHS" = "$(inherited) @executable_path/../Frameworks @executable_path/../../../../Frameworks";
+"SWIFT_OPTIMIZATION_LEVEL" = "-O";
+};
+"name" = "Release";
+};
+"000000000000000000000012" = {
+"isa" = "XCConfigurationList";
+"buildConfigurations" = (
+"000000000000000000000010",
+"000000000000000000000011",
+);
+"defaultConfigurationIsVisible" = 0;
+"defaultConfigurationName" = "Release";
+};
+"000000000000000000000013" = {
+"isa" = "PBXBuildFile";
+"fileRef" = "000000000000000000000003";
+};
+"000000000000000000000014" = {
+"isa" = "PBXBuildFile";
+"fileRef" = "000000000000000000000002";
+};
+"000000000000000000000015" = {
+"isa" = "PBXSourcesBuildPhase";
+"buildActionMask" = 2147483647;
+"files" = (
+"000000000000000000000013",
+"000000000000000000000014",
+);
+"runOnlyForDeploymentPostprocessing" = 0;
+};
+"000000000000000000000016" = {
+"isa" = "PBXFrameworksBuildPhase";
+"buildActionMask" = 2147483647;
+"files" = (
+);
+"runOnlyForDeploymentPostprocessing" = 0;
+};
+"000000000000000000000017" = {
+"isa" = "PBXNativeTarget";
+"buildConfigurationList" = "000000000000000000000012";
+"buildPhases" = (
+"000000000000000000000015",
+"000000000000000000000016",
+);
+"buildRules" = (
+);
+"dependencies" = (
+);
+"name" = "ShixuWidget";
+"productName" = "ShixuWidget";
+"productReference" = "000000000000000000000006";
+"productType" = "com.apple.product-type.app-extension";
+};
+"000000000000000000000018" = {
+"isa" = "PBXBuildFile";
+"fileRef" = "000000000000000000000006";
+"settings" = {
+"ATTRIBUTES" = (
+"RemoveHeadersOnCopy",
+);
+};
+};
+"000000000000000000000019" = {
+"isa" = "PBXCopyFilesBuildPhase";
+"buildActionMask" = 2147483647;
+"dstPath" = "";
+"dstSubfolderSpec" = 13;
+"files" = (
+"000000000000000000000018",
+);
+"name" = "Embed App Extensions";
+"runOnlyForDeploymentPostprocessing" = 0;
+};
+"00000000000000000000001A" = {
+"isa" = "PBXContainerItemProxy";
+"containerPortal" = "00000000000000000000007D";
+"proxyType" = 1;
+"remoteGlobalIDString" = "000000000000000000000017";
+"remoteInfo" = "ShixuWidget";
+};
+"00000000000000000000001B" = {
+"isa" = "PBXTargetDependency";
+"target" = "000000000000000000000017";
+"targetProxy" = "00000000000000000000001A";
+};
+"00000000000000000000001C" = {
+"isa" = "PBXBuildFile";
+"fileRef" = "000000000000000000000001";
+};
+"00000000000000000000001D" = {
+"isa" = "PBXBuildFile";
+"fileRef" = "000000000000000000000002";
+};
+"00000000000000000000001E" = {
+"isa" = "PBXSourcesBuildPhase";
+"buildActionMask" = 2147483647;
+"files" = (
+"00000000000000000000001C",
+"00000000000000000000001D",
+);
+"runOnlyForDeploymentPostprocessing" = 0;
+};
+"00000000000000000000001F" = {
+"isa" = "PBXFrameworksBuildPhase";
+"buildActionMask" = 2147483647;
+"files" = (
+);
+"runOnlyForDeploymentPostprocessing" = 0;
+};
+"000000000000000000000020" = {
+"isa" = "PBXBuildFile";
+"fileRef" = "000000000000000000000004";
+};
+"000000000000000000000021" = {
+"isa" = "PBXResourcesBuildPhase";
+"buildActionMask" = 2147483647;
+"files" = (
+"000000000000000000000020",
+);
+"runOnlyForDeploymentPostprocessing" = 0;
+};
+"000000000000000000000022" = {
+"isa" = "PBXNativeTarget";
+"buildConfigurationList" = "00000000000000000000000F";
+"buildPhases" = (
+"00000000000000000000001E",
+"00000000000000000000001F",
+"000000000000000000000021",
+"000000000000000000000019",
+);
+"buildRules" = (
+);
+"dependencies" = (
+"00000000000000000000001B",
+);
+"name" = "拾序";
+"productName" = "拾序";
+"productReference" = "000000000000000000000005";
+"productType" = "com.apple.product-type.application";
+};
+"000000000000000000000023" = {
+"isa" = "XCBuildConfiguration";
+"buildSettings" = {
+"MACOSX_DEPLOYMENT_TARGET" = "14.0";
+"SDKROOT" = "macosx";
+"SWIFT_VERSION" = "5.0";
+"SWIFT_OPTIMIZATION_LEVEL" = "-Onone";
+};
+"name" = "Debug";
+};
+"000000000000000000000024" = {
+"isa" = "XCBuildConfiguration";
+"buildSettings" = {
+"MACOSX_DEPLOYMENT_TARGET" = "14.0";
+"SDKROOT" = "macosx";
+"SWIFT_VERSION" = "5.0";
+"SWIFT_OPTIMIZATION_LEVEL" = "-O";
+};
+"name" = "Release";
+};
+"000000000000000000000025" = {
+"isa" = "XCConfigurationList";
+"buildConfigurations" = (
+"000000000000000000000023",
+"000000000000000000000024",
+);
+"defaultConfigurationIsVisible" = 0;
+"defaultConfigurationName" = "Release";
+};
+"00000000000000000000007D" = {
+"isa" = "PBXProject";
+"attributes" = {
+"LastUpgradeCheck" = "1600";
+"TargetAttributes" = {
+"000000000000000000000022" = {
+"SystemCapabilities" = {
+"com.apple.ApplicationGroups.iOS" = {
+"enabled" = 1;
+};
+};
+};
+"000000000000000000000017" = {
+"SystemCapabilities" = {
+"com.apple.ApplicationGroups.iOS" = {
+"enabled" = 1;
+};
+};
+};
+};
+};
+"buildConfigurationList" = "000000000000000000000025";
+"compatibilityVersion" = "Xcode 14.0";
+"developmentRegion" = "zh-Hans";
+"hasScannedForEncodings" = 0;
+"knownRegions" = (
+"zh-Hans",
+"en",
+"Base",
+);
+"mainGroup" = "00000000000000000000000C";
+"productRefGroup" = "000000000000000000000007";
+"projectDirPath" = "";
+"projectRoot" = "";
+"targets" = (
+"000000000000000000000022",
+"000000000000000000000017",
+);
+};
+};
+"rootObject" = "00000000000000000000007D";
+}

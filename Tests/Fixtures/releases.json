@@ -1,0 +1,7 @@
+[
+  {"tag_name":"v9.0.0-draft","draft":true,"assets":[{"name":"StepNext-9.0.0-macOS-arm64-notarized.zip","browser_download_url":"https://github.com/D2Simon/StepNext/releases/download/v9.0.0/StepNext-9.0.0-macOS-arm64-notarized.zip"}]},
+  {"tag_name":"v1.2.1","draft":false,"prerelease":true,"assets":[
+    {"name":"StepNext-1.2.1-macOS-arm64-adhoc.zip","browser_download_url":"https://github.com/D2Simon/StepNext/releases/download/v1.2.1/StepNext-1.2.1-macOS-arm64-adhoc.zip"},
+    {"name":"StepNext-1.2.1-macOS-arm64-adhoc.zip.sha256","browser_download_url":"https://github.com/D2Simon/StepNext/releases/download/v1.2.1/StepNext-1.2.1-macOS-arm64-adhoc.zip.sha256"}
+  ]}
+]
