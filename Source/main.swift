@@ -58,6 +58,13 @@ final class Store: ObservableObject {
         guard let i = archive.tasks.firstIndex(where: { $0.id == task }) else { return }
         archive.tasks[i].setProgress(through: step)
     } }
+    @discardableResult func reopen(_ task: UUID) -> Bool {
+        change { archive in
+            guard let index = archive.tasks.firstIndex(where: { $0.id == task }), archive.tasks[index].complete else { return }
+            archive.tasks[index].reopen()
+        }
+        return error == nil && data.tasks.contains { $0.id == task && !$0.complete }
+    }
     func addCategory(_ text: String) { let name = text.trimmingCharacters(in: .whitespacesAndNewlines); guard !name.isEmpty else { return }; change { if !$0.categories.contains(name) { $0.categories.append(name) } } }
 }
 struct Glass: NSViewRepresentable {
@@ -110,14 +117,19 @@ struct TaskCard: View {
     var item: TaskItem
     var compact: Bool
     var edit: () -> Void
+    var onReopen: () -> Void = {}
     @State private var deleting = false
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 8) {
-                if item.steps.count == 1, let step = item.steps.first {
-                    Button { store.setProgress(item.id, step.id) } label: {
-                        Image(systemName: step.done ? "checkmark.circle.fill" : "circle").font(.system(size: 21)).foregroundStyle(Palette.blue).frame(width: 24, height: 24)
-                    }.buttonStyle(.plain).help("完成事项").accessibilityLabel("完成：\(item.title)")
+                if item.complete || item.steps.count == 1 {
+                    Button {
+                        if item.complete {
+                            if store.reopen(item.id) { onReopen() }
+                        } else if let step = item.steps.first { store.setProgress(item.id, step.id) }
+                    } label: {
+                        Image(systemName: item.complete ? "checkmark.circle.fill" : "circle").font(.system(size: 21)).foregroundStyle(Palette.blue).frame(width: 24, height: 24)
+                    }.buttonStyle(.plain).help(item.complete ? "设为未完成并返回进行中" : "完成事项").accessibilityLabel(item.complete ? "重新打开：\(item.title)" : "完成：\(item.title)")
                 }
                 Text(item.category).font(.system(size: 10, weight: .semibold)).foregroundStyle(Palette.blue).lineLimit(1).frame(maxWidth: compact ? 36 : 65).padding(.horizontal, 6).padding(.vertical, 4).background(Palette.blue.opacity(0.08), in: Capsule()).help(item.category)
                 Text(item.title).font(.system(size: 14, weight: .semibold)).strikethrough(item.complete).foregroundStyle(item.complete ? .secondary : .primary).lineLimit(1).help(item.title).layoutPriority(1)
@@ -198,7 +210,7 @@ struct Content: View {
                 ScrollView {
                     LazyVStack(spacing: 8) {
                         if items.isEmpty { VStack(spacing: 16) { Image(systemName: status == 1 ? "checkmark.seal" : "leaf").font(.system(size: 38, weight: .light)).foregroundStyle(Palette.blue); Text(search.isEmpty ? (status == 1 ? "完成的小事会收在这里" : "从一件小事开始") : "没有找到匹配的事项").font(.headline); Text("点击上方 +，写下要做的事。").font(.caption).foregroundStyle(.secondary) }.frame(maxWidth: .infinity).padding(.vertical, 65) }
-                        ForEach(items) { item in TaskCard(item: item, compact: compact) { editing = item } }
+                        ForEach(items) { item in TaskCard(item: item, compact: compact, edit: { editing = item }, onReopen: { status = 0 }) }
                     }.padding(.bottom, 8)
                 }
             }.padding(compact ? 20 : 30).frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -320,6 +332,13 @@ if CommandLine.arguments.contains("--self-test") {
     assert(restored.data.tasks[0].steps.map(\.done) == [true, false, false, false])
     restored.setProgress(item.id, item.steps[3].id)
     assert(restored.data.tasks[0].complete)
+    let completedSnapshot = restored.data.tasks[0]
+    assert(restored.reopen(item.id))
+    assert(restored.data.tasks[0].steps.allSatisfy { !$0.done })
+    assert(restored.data.tasks[0].title == completedSnapshot.title)
+    assert(restored.data.tasks[0].dueText == completedSnapshot.dueText)
+    assert(restored.data.tasks[0].steps.map(\.id) == completedSnapshot.steps.map(\.id))
+    assert(!Store(url: url).data.tasks[0].complete)
     restored.addCategory("自定义"); restored.addCategory("自定义")
     assert(restored.data.categories.filter { $0 == "自定义" }.count == 1)
     var single = TaskItem(title: "单项", category: "生活", steps: [])
@@ -327,6 +346,9 @@ if CommandLine.arguments.contains("--self-test") {
     assert(single.steps.count == 1 && !single.complete)
     single.setProgress(through: single.steps[0].id); assert(single.complete)
     single.setProgress(through: single.steps[0].id); assert(single.complete)
+    restored.put(single)
+    assert(restored.reopen(single.id))
+    assert(!Store(url: url).data.tasks.first(where: { $0.id == single.id })!.complete)
     var priorityItem = single
     for priority in TaskPriority.allCases {
         priorityItem.priority = priority
@@ -347,7 +369,7 @@ if CommandLine.arguments.contains("--self-test") {
     assert(merged.data.tasks.contains { $0.id == single.id })
     assert((try? SharedDisk.read(url.appendingPathExtension("backup"))) != nil)
     try? FileManager.default.removeItem(at: folder)
-    print("PASS: progress 3→2, prefix completion, repeated selection, persistence, final completion, single task, categories, stale merge, backup, optional priorities, legacy decode, first-stage reset to zero")
+    print("PASS: progress 3→2, prefix completion, repeated selection, persistence, final completion, single task, categories, stale merge, backup, optional priorities, legacy decode, first-stage reset to zero, reopen completed single and multi tasks")
 } else {
     let app = NSApplication.shared
     let delegate = Delegate()

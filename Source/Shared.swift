@@ -15,6 +15,9 @@ struct TaskItem: Codable, Identifiable {
         let resetToStart = target == 0 && canResetProgress
         for index in steps.indices { steps[index].done = !resetToStart && index <= target }
     }
+    mutating func reopen() {
+        for index in steps.indices { steps[index].done = false }
+    }
     mutating func useSingleCompletion() {
         let wasComplete = complete
         if steps.count == 1 && steps[0].title == "完成" { return }

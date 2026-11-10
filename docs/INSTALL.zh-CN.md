@@ -22,7 +22,7 @@ bash install.sh
 - 默认位置：`/Applications/StepNext.app`。
 - 没有系统目录写权限时：`~/Applications/StepNext.app`。
 - 自定义位置：`bash install.sh --destination "$HOME/Applications"`。
-- 已下载 ZIP：`bash install.sh --archive /path/to/StepNext-1.2.1-macOS-arm64-adhoc.zip`，旁边必须有同名 `.sha256`。
+- 已下载 ZIP：`bash install.sh --archive /path/to/StepNext-1.2.2-macOS-arm64-adhoc.zip`，旁边必须有同名 `.sha256`。
 - 只安装不打开：`bash install.sh --no-open`。
 - Fork 仓库：`bash install.sh --repo owner/repo`。
 
@@ -39,3 +39,5 @@ bash install.sh
 ## 手动安装
 
 从 [Releases](https://github.com/D2Simon/StepNext/releases) 下载应用 ZIP，解压并将 `StepNext.app` 拖入“应用程序”，打开一次，再添加桌面小组件。
+
+在已完成列表点击前面的勾选圆圈，可以将事项设为未完成并自动切换到进行中。单项与多步骤事项都支持，名称、分类、DDL、优先级和步骤名称保留。

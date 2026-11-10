@@ -63,7 +63,7 @@ Click a step to set how far you've completed—not just to toggle that one check
 | Only step 1 is complete; click step 1 again | Return to not started |
 | Click the final step | The whole task is complete and leaves the pending list |
 
-A simple, single-step task completes directly. There is no timed undo banner after an entire task is completed.
+A simple, single-step task completes directly. To reopen any completed task, click its leading checked circle in **Completed**: all steps are cleared and the view switches to **In progress**. There is no timed undo banner.
 
 ## On your desktop
 
