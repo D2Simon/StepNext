@@ -108,9 +108,13 @@ final class MemoStore: ObservableObject {
     }
     func update(_ id: UUID, title: String? = nil, text: String? = nil) {
         guard editable, let index = notes.firstIndex(where: { $0.id == id }) else { return }
-        if let title { notes[index].title = title }
-        if let text { notes[index].text = text }
-        notes[index].updatedAt = Date(); scheduleSave()
+        var memo = notes[index]
+        if let title { memo.title = title }
+        if let text { memo.text = text }
+        guard memo != notes[index] else { return }
+        memo.updatedAt = Date()
+        notes[index] = memo
+        scheduleSave()
     }
     func remove(_ id: UUID) { guard editable else { return }; notes.removeAll { $0.id == id }; scheduleSave(); flush() }
     private func scheduleSave() {
@@ -213,10 +217,7 @@ struct MemoEditor: View {
             }
             TextField("标题", text: title).font(.system(size: 23, weight: .bold)).textFieldStyle(.plain).focused($titleFocused).accessibilityLabel("备忘录标题")
             Divider()
-            ZStack(alignment: .topLeading) {
-                if memo?.text.isEmpty != false { Text("从这里开始写，想写多长都可以…").font(.system(size: 15)).foregroundStyle(.tertiary).padding(.top, 8).padding(.leading, 5).allowsHitTesting(false) }
-                TextEditor(text: text).font(.system(size: 15)).lineSpacing(6).scrollContentBackground(.hidden).accessibilityLabel("备忘录正文")
-            }
+            MemoBodyInput(text: text, editable: memos.editable)
             HStack {
                 Text("\(memo?.text.count ?? 0) 字").font(.caption).foregroundStyle(.secondary)
                 Spacer()
@@ -224,6 +225,124 @@ struct MemoEditor: View {
             }
         }.padding(22).frame(maxWidth: .infinity, maxHeight: .infinity).disabled(!memos.editable)
         .onAppear { DispatchQueue.main.async { titleFocused = memo?.title.isEmpty == true } }
+    }
+}
+
+struct MemoBodyInput: NSViewRepresentable {
+    @Binding var text: String
+    let editable: Bool
+
+    func makeCoordinator() -> Coordinator { Coordinator(text: $text) }
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scroll = BodyScrollView()
+        scroll.drawsBackground = false
+        scroll.hasVerticalScroller = true
+        scroll.autohidesScrollers = true
+
+        let editor = BodyTextView(frame: scroll.contentView.bounds)
+        editor.autoresizingMask = [.width]
+        editor.isVerticallyResizable = true
+        editor.isHorizontallyResizable = false
+        editor.textContainer?.widthTracksTextView = true
+        editor.textContainerInset = NSSize(width: 0, height: 8)
+        editor.drawsBackground = false
+        editor.isRichText = false
+        editor.importsGraphics = false
+        editor.allowsUndo = true
+        editor.isAutomaticTextReplacementEnabled = false
+        editor.isAutomaticSpellingCorrectionEnabled = false
+        editor.font = .systemFont(ofSize: 15)
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.lineSpacing = 6
+        editor.defaultParagraphStyle = paragraph
+        editor.setAccessibilityLabel("备忘录正文")
+        editor.string = text
+        editor.delegate = context.coordinator
+        editor.didEndComposition = { [weak coordinator = context.coordinator] editor in
+            coordinator?.publish(editor)
+        }
+        scroll.documentView = editor
+        return scroll
+    }
+
+    func updateNSView(_ scroll: NSScrollView, context: Context) {
+        guard let editor = scroll.documentView as? BodyTextView else { return }
+        context.coordinator.text = $text
+        editor.isEditable = editable
+        // AppKit owns the marked text and caret while the input method is composing.
+        if !editor.isComposing, editor.string != text {
+            editor.string = text
+        }
+    }
+
+    final class Coordinator: NSObject, NSTextViewDelegate {
+        var text: Binding<String>
+
+        init(text: Binding<String>) { self.text = text }
+
+        func textDidChange(_ notification: Notification) {
+            guard let editor = notification.object as? BodyTextView else { return }
+            publish(editor)
+        }
+
+        func publish(_ editor: BodyTextView) {
+            editor.needsDisplay = true
+            guard !editor.isComposing, text.wrappedValue != editor.string else { return }
+            text.wrappedValue = editor.string
+        }
+    }
+
+    final class BodyScrollView: NSScrollView {
+        override func layout() {
+            super.layout()
+            guard let editor = documentView as? NSTextView else { return }
+            let height = contentView.bounds.height
+            if editor.minSize.height != height {
+                editor.minSize = NSSize(width: 0, height: height)
+            }
+            if editor.frame.height < height {
+                editor.setFrameSize(NSSize(width: editor.frame.width, height: height))
+            }
+        }
+    }
+
+    final class BodyTextView: NSTextView {
+        private var settingMarkedText = false
+        private var insertingText = false
+        var isComposing: Bool { settingMarkedText || insertingText || hasMarkedText() }
+        var didEndComposition: ((BodyTextView) -> Void)?
+
+        override func setMarkedText(_ string: Any, selectedRange: NSRange, replacementRange: NSRange) {
+            settingMarkedText = true
+            defer { settingMarkedText = false }
+            super.setMarkedText(string, selectedRange: selectedRange, replacementRange: replacementRange)
+            needsDisplay = true
+        }
+
+        override func insertText(_ string: Any, replacementRange: NSRange) {
+            insertingText = true
+            super.insertText(string, replacementRange: replacementRange)
+            insertingText = false
+            didEndComposition?(self)
+        }
+
+        override func unmarkText() {
+            let wasComposing = hasMarkedText()
+            super.unmarkText()
+            if wasComposing { didEndComposition?(self) }
+        }
+
+        override func draw(_ dirtyRect: NSRect) {
+            super.draw(dirtyRect)
+            guard string.isEmpty else { return }
+            let origin = NSPoint(x: textContainerInset.width + (textContainer?.lineFragmentPadding ?? 0),
+                                 y: textContainerInset.height)
+            ("从这里开始写，想写多长都可以…" as NSString).draw(at: origin, withAttributes: [
+                .font: font ?? NSFont.systemFont(ofSize: 15),
+                .foregroundColor: NSColor.placeholderTextColor
+            ])
+        }
     }
 }
 
