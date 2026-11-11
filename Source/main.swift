@@ -207,7 +207,6 @@ struct MemoEditor: View {
     @FocusState private var titleFocused: Bool
     var memo: Memo? { memos.notes.first { $0.id == id } }
     var title: Binding<String> { Binding(get: { memo?.title ?? "" }, set: { memos.update(id, title: $0) }) }
-    var text: Binding<String> { Binding(get: { memo?.text ?? "" }, set: { memos.update(id, text: $0) }) }
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack {
@@ -217,7 +216,9 @@ struct MemoEditor: View {
             }
             TextField("标题", text: title).font(.system(size: 23, weight: .bold)).textFieldStyle(.plain).focused($titleFocused).accessibilityLabel("备忘录标题")
             Divider()
-            MemoBodyInput(text: text, editable: memos.editable)
+            MemoBodyInput(initialText: memo?.text ?? "", editable: memos.editable) { newText in
+                memos.update(id, text: newText)
+            }
             HStack {
                 Text("\(memo?.text.count ?? 0) 字").font(.caption).foregroundStyle(.secondary)
                 Spacer()
@@ -229,10 +230,13 @@ struct MemoEditor: View {
 }
 
 struct MemoBodyInput: NSViewRepresentable {
-    @Binding var text: String
+    let initialText: String
     let editable: Bool
+    let onChange: (String) -> Void
 
-    func makeCoordinator() -> Coordinator { Coordinator(text: $text) }
+    func makeCoordinator() -> Coordinator {
+        Coordinator(initialText: initialText, onChange: onChange)
+    }
 
     func makeNSView(context: Context) -> NSScrollView {
         let scroll = BodyScrollView()
@@ -257,7 +261,7 @@ struct MemoBodyInput: NSViewRepresentable {
         paragraph.lineSpacing = 6
         editor.defaultParagraphStyle = paragraph
         editor.setAccessibilityLabel("备忘录正文")
-        editor.string = text
+        editor.string = initialText
         editor.delegate = context.coordinator
         editor.didEndComposition = { [weak coordinator = context.coordinator] editor in
             coordinator?.publish(editor)
@@ -268,18 +272,22 @@ struct MemoBodyInput: NSViewRepresentable {
 
     func updateNSView(_ scroll: NSScrollView, context: Context) {
         guard let editor = scroll.documentView as? BodyTextView else { return }
-        context.coordinator.text = $text
-        editor.isEditable = editable
-        // AppKit owns the marked text and caret while the input method is composing.
-        if !editor.isComposing, editor.string != text {
-            editor.string = text
+        context.coordinator.onChange = onChange
+        if editor.isEditable != editable {
+            editor.isEditable = editable
         }
+        // MemoWorkspace gives each note its own editor identity. Load its text
+        // once so a save or sidebar refresh cannot overwrite the live editor.
     }
 
     final class Coordinator: NSObject, NSTextViewDelegate {
-        var text: Binding<String>
+        private var lastCommittedText: String
+        var onChange: (String) -> Void
 
-        init(text: Binding<String>) { self.text = text }
+        init(initialText: String, onChange: @escaping (String) -> Void) {
+            lastCommittedText = initialText
+            self.onChange = onChange
+        }
 
         func textDidChange(_ notification: Notification) {
             guard let editor = notification.object as? BodyTextView else { return }
@@ -288,8 +296,9 @@ struct MemoBodyInput: NSViewRepresentable {
 
         func publish(_ editor: BodyTextView) {
             editor.needsDisplay = true
-            guard !editor.isComposing, text.wrappedValue != editor.string else { return }
-            text.wrappedValue = editor.string
+            guard !editor.isComposing, lastCommittedText != editor.string else { return }
+            lastCommittedText = editor.string
+            onChange(lastCommittedText)
         }
     }
 
